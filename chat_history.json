@@ -22,5 +22,21 @@
   {
     "role": "assistant",
     "content": "GPT‑4 tabanlı bir modelim."
+  },
+  {
+    "role": "user",
+    "content": "Guzel"
+  },
+  {
+    "role": "assistant",
+    "content": "Rica ederim!"
+  },
+  {
+    "role": "user",
+    "content": "Yazilan mesajlari hatirliyonmu"
+  },
+  {
+    "role": "assistant",
+    "content": "Evet, bu oturum içinde önceki mesajları görebiliyorum; oturum kapandıktan sonra ise hatırlamıyorum."
   }
 ]
