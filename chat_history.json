@@ -6,5 +6,21 @@
   {
     "role": "assistant",
     "content": "İyiyim, sen?"
+  },
+  {
+    "role": "user",
+    "content": "Sen ai sın şu an demi"
+  },
+  {
+    "role": "assistant",
+    "content": "Evet, ben bir yapay zekâyım."
+  },
+  {
+    "role": "user",
+    "content": "Hangi model"
+  },
+  {
+    "role": "assistant",
+    "content": "GPT‑4 tabanlı bir modelim."
   }
 ]
