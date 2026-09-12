@@ -4,19 +4,24 @@ name: Telegram AI Bot
 #   1) "Run workflow" ile elle (workflow_dispatch)
 #   2) Zamanlanmış görev ile (schedule) - GitHub'ın cron zamanlaması UTC'dir ve
 #      yoğunlukta birkaç dakika gecikebilir.
+#
+# Varsayılan mod "loop": bot LOOP_MINUTES (4.5 dk) boyunca uzun-polling ile mesaj
+# bekler, böylece yanıtlar cron aralığını beklemeden anında gönderilir. Süre bitince
+# iş biter, bir sonraki zamanlanmış çalıştırma sıraya girer ve dinleme döngüsü sürer.
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Çalışma modu (once = tek tur, loop = süre boyunca bekle)"
+        description: "Çalışma modu (loop = süre boyunca mesaj bekle - önerilen, once = tek tur)"
         required: false
-        default: "once"
+        default: "loop"
         type: choice
         options:
-          - once
           - loop
+          - once
   schedule:
-    # Her 5 dakikada bir (UTC). Daha sık çalıştırmak GitHub kota/politikaları açısından önerilmez.
+    # Her 5 dakikada bir (UTC). Bot her çalıştırmada 4.5 dk mesaj dinlediği için
+    # pratikte kesintisiz bir dinleme döngüsü oluşur.
     - cron: "*/5 * * * *"
 
 # Bot, chat_history.json dosyasını repoya geri push'ladığı için yazma izni gerekir.
@@ -32,7 +37,7 @@ jobs:
   run-bot:
     name: Botu çalıştır
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       # --- Zorunlu GitHub Secrets ---
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -42,8 +47,11 @@ jobs:
       # --- Diğer ayarlar ---
       GITHUB_REPOSITORY: ${{ github.repository }}
       PYTHONUNBUFFERED: "1"
+      # loop modunda her çalıştırmada mesaj dinlenecek süre (dakika).
+      # cron aralığından (5 dk) kısa tutulur ki çalıştırmalar üst üste binmesin.
+      LOOP_MINUTES: "4.5"
       # Yerleşik GITHUB_TOKEN yerine PAT ile push etmek için (PAT yoksa boş kalır,
-      # o durumda aşağıdaki push adımı checkout'tan gelen kimlik bilgisini kullanır).
+      # o durumda checkout'tan gelen kimlik bilgisi kullanılır).
       GIT_BRANCH: ${{ github.ref_name }}
 
     steps:
@@ -92,6 +100,6 @@ jobs:
 
       - name: Botu çalıştır
         env:
-          # Elle çalıştırmada seçilen mod; zamanlanmış çalıştırmada "once".
-          BOT_MODE: ${{ github.event.inputs.mode || 'once' }}
-        run: python bot.py --mode "${BOT_MODE:-once}"
+          # Elle çalıştırmada seçilen mod; zamanlanmış çalıştırmada "loop".
+          BOT_MODE: ${{ github.event.inputs.mode || 'loop' }}
+        run: python bot.py --mode "${BOT_MODE:-loop}"

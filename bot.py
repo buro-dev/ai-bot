@@ -10,7 +10,8 @@ Ne yapar?
    sunucu/servis gerekmez).
 2. Sadece ``ALLOWED_USER_ID`` değerine sahip kullanıcının mesajlarına yanıt verir.
 3. Gelen mesajı + ``chat_history.json`` içindeki sohbet geçmişini Groq API'ye
-   (varsayılan model: ``llama-3.3-70b-versatile``) gönderir.
+   (varsayılan model: ``openai/gpt-oss-120b``; model kapalıysa sıradaki yedeğe geçer)
+   gönderir.
 4. Üretilen yanıtı Telegram'da ilgili mesaja cevap olarak atar.
 5. Yeni mesajı ve yanıtı ``chat_history.json`` dosyasına yazar, ardından
    ``git add`` / ``git commit`` / ``git push`` ile repoyu günceller.
@@ -71,11 +72,12 @@ DEFAULT_REQUIREMENTS_FILE = REPO_ROOT / "requirements.txt"
 DEFAULT_WORKFLOW_FILE = REPO_ROOT / ".github" / "workflows" / "bot.yml"
 
 TELEGRAM_MAX_MESSAGE_LENGTH = 4096
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_MODEL = "openai/gpt-oss-120b"
 
-# Model kullanımdan kaldırıldığında sırayla denenecek yedekler.
-# (Groq, llama-3.3-70b-versatile için openai/gpt-oss-120b veya qwen/qwen3.6-27b öneriyor.)
-DEFAULT_FALLBACK_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+# Model kullanılamazsa (kullanımdan kaldırma, erişim yokluğu vb.) sırayla denenecek modeller.
+# Not: Groq, llama-3.3-70b-versatile ve llama-3.1-8b-instant modellerini 16.08.2026'da
+# kapattı; bu yüzden llama yalnızca son çare olarak listede tutuluyor.
+DEFAULT_FALLBACK_MODELS = ["openai/gpt-oss-20b", "llama-3.3-70b-versatile"]
 
 DEFAULT_SYSTEM_PROMPT = (
     "Sen Telegram üzerinden konuşan yardımcı bir asistansın. "
@@ -891,6 +893,11 @@ class GroqChat:
             return "Groq API'ye bağlanılamadı (ağ erişimi?)."
         if isinstance(exc, APIStatusError) and getattr(exc, "status_code", None) == 400:
             return "Groq isteği reddedildi (400). Model adı veya bağlam uzunluğu sorunlu olabilir."
+        if isinstance(exc, RuntimeError) and "Groq modeli" in str(exc):
+            return (
+                "Listedeki hiçbir Groq modeli kullanılamadı. Modeller kullanımdan kaldırılmış olabilir; "
+                "GROQ_MODEL / GROQ_FALLBACK_MODELS ayarlarını güncelleyin."
+            )
         return "Beklenmeyen hata: %s" % type(exc).__name__
 
 
@@ -1521,9 +1528,9 @@ def run_self_tests() -> int:
 
     # --- argparse ---
     print("\nCLI:")
-    parsed = parse_args(["--mode", "once", "--dry-run", "--no-git", "--model", "llama-3.3-70b-versatile"])
+    parsed = parse_args(["--mode", "once", "--dry-run", "--no-git", "--model", "openai/gpt-oss-120b"])
     check("argparse mod seçiyor", parsed.mode == "once" and parsed.dry_run and parsed.no_git)
-    check("argparse model alıyor", parsed.model == ["llama-3.3-70b-versatile"])
+    check("argparse model alıyor", parsed.model == ["openai/gpt-oss-120b"])
     check("--version çalışıyor", parsed is not None)
 
     print("\nSonuç: %d kontrol, %d hata." % (checks, len(failures)))

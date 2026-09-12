@@ -42,9 +42,12 @@ gh secret set GH_PAT_TOKEN     --repo <kullanıcı>/<depo> --body "github_pat_..
 ## 2) GitHub Actions ile çalıştırma
 
 * İş akışı **5 dakikada bir** (UTC) ve elle (**Actions → Telegram AI Bot → Run workflow**) tetiklenir.
-* Elle çalıştırmada mod seçilebilir: `once` (tek tur) veya `loop` (5 dakika boyunca yeni mesaj bekler).
+* Varsayılan mod **`loop`**: bot her çalıştırmada `LOOP_MINUTES` (iş akışında `4.5` dk) boyunca uzun-polling
+  ile mesaj bekler; bu sayede yanıtlar cron aralığını beklemeden anında gönderilir. Süre bitince iş biter,
+  bir sonraki zamanlanmış çalıştırma sıraya girip dinlemeye devam eder (pratikte kesintisiz döngü).
+* Elle çalıştırmada mod seçilebilir: `loop` (süre boyunca bekle) veya `once` (tek tur, hızlı test).
 * İş akışı önce `python -m py_compile bot.py` ve `python bot.py --self-test` adımlarını çalıştırır;
-  ardından `python bot.py --mode once` ile botu çalıştırır.
+  ardından `python bot.py --mode loop` ile botu çalıştırır.
 * Aynı token ile iki örnek çakışmasın diye `concurrency: telegram-ai-bot` tanımlıdır.
 * Bot sadece `chat_history.json` dosyasını commit'ler; başka dosyalara dokunmaz.
 
@@ -84,10 +87,12 @@ Ayarlar `.env` dosyasından da okunur (`.env.example` şablonuna bakın).
 
 ## 5) Önemli notlar
 
-* **Model:** Varsayılan model `llama-3.3-70b-versatile`. Groq bu modeli **16 Ağustos 2026**'da
-  kullanımdan kaldırdı; bu yüzden bot, model kapalıysa sırayla `openai/gpt-oss-120b` ve
-  `openai/gpt-oss-20b` modellerine düşer (`GROQ_MODEL`, `GROQ_FALLBACK_MODELS` ile değiştirilebilir).
-  Kullanımdan kaldırılmış bir model denendiğinde logda "Groq modeli kullanılamıyor" uyarısı görünür.
+* **Model:** Varsayılan model `openai/gpt-oss-120b`. Model kullanılamazsa sırayla
+  `openai/gpt-oss-20b` ve `llama-3.3-70b-versatile` yedekleri denenir (`GROQ_MODEL`,
+  `GROQ_FALLBACK_MODELS` ile değiştirilebilir; `GROQ_DISABLE_FALLBACK_MODELS=1` ile kapatılır).
+  Not: Groq, `llama-3.3-70b-versatile` modelini **16 Ağustos 2026**'da kullanımdan kaldırdı
+  ([deprecations](https://console.groq.com/docs/deprecations)); bu yüzden yalnızca yedek listede.
+  Kullanılamayan bir model denendiğinde logda "Groq modeli kullanılamıyor" uyarısı görünür.
 * **Yetki:** Bot yalnızca `ALLOWED_USER_ID` ile eşleşen mesajlara yanıt verir; diğerleri loglanıp yok sayılır.
 * **Geçmiş dosyası:** Yazma işlemi atomiktir (geçici dosya + `os.replace`). Dosya bozuksa
   `chat_history.json.bozuk-yedek` olarak yedeklenir ve geçmiş sıfırdan başlar.
