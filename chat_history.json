@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Sen ai sın şu an demi"
-  },
-  {
-    "role": "assistant",
-    "content": "Evet, ben bir yapay zekâyım."
-  },
-  {
-    "role": "user",
     "content": "Hangi model"
   },
   {
@@ -158,5 +150,13 @@
   {
     "role": "assistant",
     "content": "Railway’in **ücretsiz (Free) planı** için **kredi kartı zorunlu değildir**.  \nGitHub veya Google hesabınızla oturum açıp projeyi bağlayarak hemen kullanabilirsiniz.\n\n* Ücretsiz plan sınırları  \n  * 500 saat/ay çalışma süresi (yaklaşık 21 gün)  \n  * 500 MB RAM, 1 CPU  \n  * Veri tabanı ve statik dosya depolama gibi temel özellikler\n\n* **Kredi kartı** yalnızca **ücretli (Pro/Enterprise) planlara** geçmek istediğinizde istenir. Ücretli plana yükselttiğinizde faturalandırma ve limit artırma işlemleri için kart bilgisi girmeniz gerekir.\n\nDolayısıyla, sadece ücretsiz sınırlı bir 24/7 bot çalıştırmak istiyorsanız Railway’i **kredi kartı olmadan** rahatlıkla kullanabilirsiniz."
+  },
+  {
+    "role": "user",
+    "content": "Telegrama yaziyon bot olarak kalin harfler gelmiyo haberin olsun"
+  },
+  {
+    "role": "assistant",
+    "content": "Telegram’da mesajları **kalın** (bold) göstermek için botun **parse_mode** parametresini doğru ayarlaman gerekir. İki yaygın yöntem:\n\n1. **MarkdownV2**  \n   ```python\n   bot.send_message(\n       chat_id=chat_id,\n       text=\"*Kalın metin*\",\n       parse_mode=\"MarkdownV2\"\n   )\n   ```\n   *Not:* `*` karakterini kaçış (`\\*`) yapman, `\\`, `_`, `` ` `` gibi diğer özel karakterleri de aynı şekilde kaçırman gerekir.\n\n2. **HTML**  \n   ```python\n   bot.send_message(\n       chat_id=chat_id,\n       text=\"<b>Kalın metin</b>\",\n       parse_mode=\"HTML\"\n   )\n   ```\n   HTML etiketlerini ( `<b>`, `<strong>` ) kullan.\n\n**Sık yapılan hata:**  \n- `parse_mode`’u belirtmemek → Telegram düz metin olarak gönderir.  \n- MarkdownV2’de özel karakterleri kaçırmadan göndermek → format bozulur ve kalın görünmez.\n\n**Kısaca yapman gerekenler**\n```python\ntext = \"*Kalın metin*\"\nbot.send_message(chat_id, text, parse_mode=\"MarkdownV2\")\n# ya da\ntext = \"<b>Kalın metin</b>\"\nbot.send_message(chat_id, text, parse_mode=\"HTML\")\n```\n\nBu şekilde gönderdiğin mesajlarda kalın harfler düzgün görüntülenecektir."
   }
 ]
