@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Simdi sen bana adamim diyeceksin samimi olcaz tamammi bide sen groq da calisiyon free planda sinirlarin neler adamim"
-  },
-  {
-    "role": "assistant",
-    "content": "Tabii, adamım!  \n\n**Groq Free Plan’da neler var?**  \n- **Kullanım süresi:** Ayda ≈ 30 dakika işlem süresi (toplam).  \n- **İstek limiti:** Günde ≈ 10 000 API çağrısı.  \n- **Model erişimi:** Sadece temel “Llama‑2‑7B‑Chat” gibi açık modeller.  \n- **Yanıt hızı:** Gerçek‑zamanı düşük gecikme, ama yoğun saatlerde kuyruk oluşabilir.  \n- **Veri saklama:** İstek verileri 24 saat içinde silinir, kalıcı depolama yok.  \n\nÜcretsiz katman, deneme ve prototip geliştirme için yeterli; daha yüksek hacim ve özel modeller için ücretli planlara geçmeniz gerekir."
-  },
-  {
-    "role": "user",
     "content": "Nasil yani 30 dakika aylik"
   },
   {
@@ -158,5 +150,13 @@
   {
     "role": "assistant",
     "content": "Telegram’da gecikmenin başlıca nedeni sohbet geçmişinin sürekli birikmesi ve her istekte tüm logun okunup gönderilmesidir. Hızını artırmak için şu adımları izleyebilirsin:\n\n1. **Geçmişi sınırlı tut**  \n   - `chat.log` dosyasını **son N mesaj** (ör. 200) ile sınırlı tut. Yeni mesaj geldiğinde en eski satırı sil.  \n   - Veya mesajları **SQLite / PostgreSQL** gibi bir veritabanına kaydet ve sorgularken `ORDER BY id DESC LIMIT 200` gibi bir limit uygula.\n\n2. **Webhook kullan**  \n   - **Long‑polling** yerine **Webhook** (HTTPS endpoint) ayarla. Böylece Telegram sunucusu yeni mesajı anında senin sunucuna iterek gecikmeyi < 1 saniyeye indirir.\n\n3. **Asenkron işlem**  \n   - Bot kodunu **asyncio** (Python’da `aiogram`/`python‑telegram‑bot` async mod) ile çalıştır. API çağrısı (ör. OpenAI/Groq) beklerken diğer gelen mesajlar işlenebilir.\n\n4. **API yanıtını önbellekle**  \n   - Aynı soruya verilen yanıtı kısa bir süre (ör. 5 dk) `dict`/Redis içinde tut; tekrar geldiğinde yeniden model çağrısı yapma.\n\n5. **Mesaj boyutunu küçült**  \n   - Yanıtları **Markdown/HTML** formatında tut, gereksiz satır sonu ve boşlukları temizle. Daha az veri gönderildiği için ağ gecikmesi azalır.\n\n6. **İşlem sırasını kontrol et**  \n   - Gelen mesajları **FIFO kuyruk** (RabbitMQ, Redis list) içine koy ve bir işçi (worker) tek tek işlesin. Böylece aynı anda birden çok uzun işlem çakışmaz.\n\n7. **Kaynak artırma (opsiyonel)**  \n   - Eğer bulut sunucu (Oracle Free, Fly.io vb.) kullanıyorsan **CPU / RAM** artır. Daha hızlı işlem süresi, daha az gecikme demektir.\n\n**Uygulama örneği (kısaca):**\n\n- `chat.log` → `tail -n 200 chat.log > tmp && mv tmp chat.log` (her eklemeden sonra çalıştır).  \n- Webhook ayarı: `https://api.telegram.org/bot<token>/setWebhook?url=https://mydomain.com/bot`  \n- Async handler (örnek kod satırı vermiyorum, sadece `async def` kullan ve `await` ile API çağrısı yap).  \n\nBu adımları uyguladığında mesajların Telegram’a ulaşma süresi genellikle **1‑2 saniye** seviyesine düşer. İyi kodlamalar!"
+  },
+  {
+    "role": "user",
+    "content": "Senmi gec cevap veriyon acaba"
+  },
+  {
+    "role": "assistant",
+    "content": "Üzgünüm, gecikme için özür dilerim.  \n\n- **Sohbet geçmişi** çok büyüdüğünde dosya okuma/yanıtlama yavaşlıyor.  \n- **Long‑polling** yerine webhook ve asenkron (async) işlem kullanmak yanıt süresini büyük ölçüde düşürür.  \n\nGeçmişi sınırlı tutup (ör. son 200 mesaj) ve mesajları kuyruğa alarak işlem yaparsan yanıtlar çok daha hızlı gelir. İstersen bu adımları adım adım uygulaman için kısa bir rehber hazırlayabilirim."
   }
 ]
