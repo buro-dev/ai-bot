@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Naber"
-  },
-  {
-    "role": "assistant",
-    "content": "İyiyim, sen?"
-  },
-  {
-    "role": "user",
     "content": "Sen ai sın şu an demi"
   },
   {
@@ -158,5 +150,13 @@
   {
     "role": "assistant",
     "content": "**Ücretsiz 24/7 bot için pratik seçenekler**\n\n| Platform | Ücretsiz kota | Süre | Nasıl kurulur (özet) |\n|----------|---------------|------|----------------------|\n| **Oracle Cloud Free Tier** | 2 AMD CPU + 1 GB RAM VM | Sürekli (kota yok) | Compute‑Engine oluştur → Ubuntu → Python + API anahtarı kur → `systemd` ile botu servis olarak çalıştır. |\n| **Fly.io (Free)** | 3 shared CPU + 256 MB RAM, 3 GB veri transferi | Sürekli (aylık 160 h ≈ 1 ay) | `flyctl launch` → Dockerfile (Python) → `fly deploy`. |\n| **Render (Free Web Service)** | 750 h/ay (≈ 1 ay) | Sürekli (uyku moduna girmez) | Repo bağla → “Web Service” seç → `Dockerfile`/`start.sh` ekle → Deploy. |\n| **Railway (Free)** | 500 h/ay (≈ 21 gün) | Sürekli (kota dolunca durur) | Repo bağla → “Deploy” → `Dockerfile` veya `Procfile` ekle. |\n| **Replit (Free)** | 500 h/ay (≈ 21 gün) | Sürekli (keep‑alive ping gerekir) | `main.py` → “Run” → “Always‑On” (ping botu ekle). |\n| **Google Cloud Run (Free)** | 2 M CPU‑saniye + 1 GiB‑saniye/ay (≈ 2 h) | **Değil** – sadece istek geldiğinde çalışır. (Sürekli çalışmaz) |\n| **Hugging Face Spaces (Free)** | 30 h/ay GPU, 15 h/ay CPU | Sürekli (kota dolunca durur) | `space` oluştur → `app.py` → Deploy. |\n\n### En çok tavsiye edilen: **Oracle Cloud Free Tier**\n1. **Hesap aç** → “Always Free” VM oluştur (2 vCPU + 1 GB RAM).  \n2. SSH ile bağlan → `sudo apt update && sudo apt install python3-pip git`.  \n3. Bot kodunu (`git clone …`) ve `requirements.txt` yükle.  \n4. **systemd servisi** oluştur:  \n\n```bash\nsudo nano /etc/systemd/system/ai-bot.service\n```\n\n```ini\n[Unit]\nDescription=AI Bot\nAfter=network.target\n\n[Service]\nUser=ubuntu\nWorkingDirectory=/home/ubuntu/ai-bot\nExecStart=/usr/bin/python3 bot.py\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n```\n\n5. `sudo systemctl daemon-reload && sudo systemctl enable --now ai-bot` → Bot 7/24 çalışır.  \n6. **Günlük log** için `journalctl -u ai-bot -f` kullan.\n\n### Diğer ücretsiz çözümler (kısa özet)\n\n- **Fly.io**: Dockerfile ile aynı adımları izleyip `fly deploy`. 1 GB RAM’a kadar ücretsiz, ayda 160 saat.\n- **Render**: Repo bağla → “Free Web Service”. 750 saat/ay yeterli (≈ 31 gün).  \n- **Railway**: 500 saat/ay, aynı repo‑pipeline.  \n- **Replit**: `while True"
+  },
+  {
+    "role": "user",
+    "content": "Railway kredi karti istermi"
+  },
+  {
+    "role": "assistant",
+    "content": "Railway’in **ücretsiz (Free) planı** için **kredi kartı zorunlu değildir**.  \nGitHub veya Google hesabınızla oturum açıp projeyi bağlayarak hemen kullanabilirsiniz.\n\n* Ücretsiz plan sınırları  \n  * 500 saat/ay çalışma süresi (yaklaşık 21 gün)  \n  * 500 MB RAM, 1 CPU  \n  * Veri tabanı ve statik dosya depolama gibi temel özellikler\n\n* **Kredi kartı** yalnızca **ücretli (Pro/Enterprise) planlara** geçmek istediğinizde istenir. Ücretli plana yükselttiğinizde faturalandırma ve limit artırma işlemleri için kart bilgisi girmeniz gerekir.\n\nDolayısıyla, sadece ücretsiz sınırlı bir 24/7 bot çalıştırmak istiyorsanız Railway’i **kredi kartı olmadan** rahatlıkla kullanabilirsiniz."
   }
 ]
