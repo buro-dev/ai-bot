@@ -118,5 +118,13 @@
   {
     "role": "assistant",
     "content": "Henüz bir görsel almadım. Lütfen tekrar gönderir misin?"
+  },
+  {
+    "role": "user",
+    "content": "Sistemine eklemedim herhalde sen actionsta calisiyon githubda 6 saatte bir yeniden basliyon sistem iyimi sence"
+  },
+  {
+    "role": "assistant",
+    "content": "Evet, GitHub Actions’da 6 saatte bir yeniden başlatmak bazı durumlarda faydalı olabilir, ama dikkat etmen gereken birkaç nokta var:\n\n1. **Durum kaybı** – İş akışının her yeniden başlatmada önceki oturumu (ör. önbellek, geçici dosyalar) kaybettiğinden emin ol. Gerekirse `actions/cache` veya dış depolama (S3, GCS) kullan.\n\n2. **Ücret ve kota** – Her yeniden başlatma yeni bir iş başlatır, bu da kullanım kotanı (dakika, CPU) artırabilir. Ücretsiz plan sınırlarını kontrol et.\n\n3. **Güncellemeler** – Kod veya bağımlılık değişikliklerini otomatik olarak çekmek istiyorsan, `pull` veya `checkout` adımlarını her çalıştırmada ekle.\n\n4. **Sağlık kontrolü** – Eğer bir hata/çökme sonrası otomatik yeniden başlatma istiyorsan, sadece belirli bir hata kodu geldiğinde yeniden çalıştırmayı (`if: failure()`) tercih et; aksi takdirde gereksiz tekrarlar oluşur.\n\n5. **Zamanlama** – 6 saatlik periyot, genelde “süreklilik” (uptime) gerektiren botlar veya API token yenileme gibi senaryolar için uygundur. Daha sık gerekmezse, kaynak tasarrufu için periyodu artırabilirsin.\n\nÖzet: **Kullanım senaryona uygun, durum kaybını önleyecek ve maliyet/kota kontrolü yapıyorsan** 6 saatte bir yeniden başlatma mantıklı bir çözüm olur."
   }
 ]
