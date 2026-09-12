@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Ondan once"
-  },
-  {
-    "role": "assistant",
-    "content": "“Yazilan mesajlari hatirliyonmu” sorusunu sormuştunuz."
-  },
-  {
-    "role": "user",
     "content": "Helall"
   },
   {
@@ -158,5 +150,13 @@
   {
     "role": "assistant",
     "content": "Alo, nasıl yardımcı olabilirim?"
+  },
+  {
+    "role": "user",
+    "content": "Test"
+  },
+  {
+    "role": "assistant",
+    "content": "Test başarılı. 🚀"
   }
 ]
