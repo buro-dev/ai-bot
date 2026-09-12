@@ -134,5 +134,13 @@
   {
     "role": "assistant",
     "content": "Tabii, “sınırsız” bir bot için şu basit akışı izleyebilirsin:\n\n1. **Repo oluştur** – Public bir GitHub reposu oluştur ve içinde:\n   - `bot.py` (AI modelinizi çalıştıran script)\n   - `chat.log` (sohbet geçmişini tutan dosya)\n   - `.github/workflows/bot.yml` (Actions tanımı)\n\n2. **GitHub Actions workflow** (`bot.yml`)  \n   ```yaml\n   name: AI Bot\n\n   on:\n     schedule:\n       - cron: '0 */6 * * *'   # 6 saatte bir çalıştır\n     push:\n       branches: [ main ]       # repo güncellendiğinde de tetiklenir\n\n   jobs:\n     run-bot:\n       runs-on: ubuntu-latest\n       steps:\n         - name: Checkout repo\n           uses: actions/checkout@v4\n\n         - name: Set up Python\n           uses: actions/setup-python@v5\n           with:\n             python-version: \"3.11\"\n\n         - name: Install deps\n           run: pip install -r requirements.txt   # örn. openai, transformers vb.\n\n         - name: Run bot\n           env:\n             OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}\n           run: python bot.py\n\n         - name: Commit chat log\n           run: |\n             git config user.name \"github-actions\"\n             git config user.email \"actions@github.com\"\n             git add chat.log\n             git commit -m \"Update chat history\"\n             git push origin main\n   ```\n\n3. **`bot.py` içinde**  \n   - Kullanıcı mesajlarını (ör. bir webhook, Telegram API vb.) alıp yanıt üret.  \n   - Üretilen yanıtı `chat.log` dosyasına ekle (`with open(\"chat.log\",\"a\")…`).  \n   - İşlem tamamlandığında workflow yukarıdaki adımla dosyayı repo’ya geri itiyor.\n\n4. **Sınırsız kullanım?**  \n   - Public repo’da **GitHub Actions ücretsiz kotası** aylık 2 000 dakikadır. Bu, “sınırsız” demek değil, ama çoğu küçük bot için yeterli olur. Kotayı aştığınızda ya bekleyip yeni aya geçersiniz ya da bir ücretli plan alırsınız.  \n   - API (OpenAI, Groq vb.) anahtarlarını **Secrets** kısmına koyun; kod içinde doğrudan yazmayın.\n\n5. **Güvenlik**  \n   - Bot dışarıdan gelen mesajları doğrudan çalıştırmasın; sadece beklenen formatları (JSON, metin) kabul et.  \n   - `chat.log` herkese açık olduğundan hassas veri (kişisel bilgiler) kaydetmemeye dikkat et.\n\nBu adımlarla, repo her 6 saatte bir otomatik olarak güncellenir, sohbet geçmişi kaydedilir ve bot çalışmaya devam eder. İhtiyacın olursa belirli adımları daha detaylı açıklayabilirim."
+  },
+  {
+    "role": "user",
+    "content": "Aylik 2000 dakika kac gun demek"
+  },
+  {
+    "role": "assistant",
+    "content": "2000 dakika ≈ 33 saat ≈ 1,4 gün (yaklaşık 1 gün 9 saat)."
   }
 ]
