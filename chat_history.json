@@ -38,5 +38,21 @@
   {
     "role": "assistant",
     "content": "Evet, bu oturum içinde önceki mesajları görebiliyorum; oturum kapandıktan sonra ise hatırlamıyorum."
+  },
+  {
+    "role": "user",
+    "content": "Ne yazidm en son"
+  },
+  {
+    "role": "assistant",
+    "content": "En son “Ne yazidm en son” diye sormuştunuz."
+  },
+  {
+    "role": "user",
+    "content": "Ondan once"
+  },
+  {
+    "role": "assistant",
+    "content": "“Yazilan mesajlari hatirliyonmu” sorusunu sormuştunuz."
   }
 ]
