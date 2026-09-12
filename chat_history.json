@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Ne yazidm en son"
-  },
-  {
-    "role": "assistant",
-    "content": "En son “Ne yazidm en son” diye sormuştunuz."
-  },
-  {
-    "role": "user",
     "content": "Ondan once"
   },
   {
@@ -158,5 +150,13 @@
   {
     "role": "assistant",
     "content": "Evet, buradayım! Nasıl yardımcı olabilirim?"
+  },
+  {
+    "role": "user",
+    "content": "Alo"
+  },
+  {
+    "role": "assistant",
+    "content": "Alo, nasıl yardımcı olabilirim?"
   }
 ]
