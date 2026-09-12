@@ -1,13 +1,18 @@
 name: Telegram AI Bot
 
-# Bot iki şekilde tetiklenebilir:
-#   1) "Run workflow" ile elle (workflow_dispatch)
-#   2) Zamanlanmış görev ile (schedule) - GitHub'ın cron zamanlaması UTC'dir ve
-#      yoğunlukta birkaç dakika gecikebilir.
+# Bot, 6 saatte bir kendini yenileyen KESİNTİSİZ bir döngüde çalışır:
+#   1) Her çalıştırma 5.5 saat (--mode loop --loop-minutes 330) boyunca
+#      uzun-polling ile mesaj dinler; job timeout'u 350 dakikadır.
+#   2) Job'un SON ADIMI akışı kendini yeniden tetikler:
+#      "gh workflow run bot.yml -f mode=loop -f loop_minutes=330"
+#      (if: always() -> bot adımı hata verse bile döngü devam eder).
+#   3) cron "0 */6 * * *" GÜVENLİK AĞIDIR: kendinden-tetikleme zinciri bozulursa
+#      (yetki/API sorunu, silinen run, vb.) 6 saatlik sınırda GitHub kendiliğinden
+#      yeni bir çalıştırma başlatır.
 #
-# Varsayılan mod "loop": bot LOOP_MINUTES (4.5 dk) boyunca uzun-polling ile mesaj
-# bekler, böylece yanıtlar cron aralığını beklemeden anında gönderilir. Süre bitince
-# iş biter, bir sonraki zamanlanmış çalıştırma sıraya girer ve dinleme döngüsü sürer.
+# concurrency grubu (telegram-ai-bot, cancel-in-progress: false) sayesinde aynı
+# anda TEK örnek çalışır; üst üste düşen çalıştırmalar kuyruğa girer, iptal
+# edilmez. Böylece getUpdates çakışması olmaz ve dinleme kesintiye uğramaz.
 on:
   workflow_dispatch:
     inputs:
@@ -19,14 +24,21 @@ on:
         options:
           - loop
           - once
+      loop_minutes:
+        description: "loop modunda mesaj dinleme süresi (dk)"
+        required: false
+        default: "330"
+        type: string
   schedule:
-    # Her 5 dakikada bir (UTC). Bot her çalıştırmada 4.5 dk mesaj dinlediği için
-    # pratikte kesintisiz bir dinleme döngüsü oluşur.
-    - cron: "*/5 * * * *"
+    # Güvenlik ağı: 6 saatte bir (UTC). Normalde kendinden-tetikleme zinciri
+    # kesintisiz çalışır; cron yalnızca zincir bozulduğunda devreye girer.
+    - cron: "0 */6 * * *"
 
-# Bot, chat_history.json dosyasını repoya geri push'ladığı için yazma izni gerekir.
+# Bot, chat_history.json dosyasını repoya geri push'lar (contents: write) ve
+# kendini yeniden tetikler (actions: write -> gh workflow run).
 permissions:
   contents: write
+  actions: write
 
 # Aynı anda tek bot örneği çalışsın (getUpdates çakışmasını önler).
 concurrency:
@@ -35,9 +47,9 @@ concurrency:
 
 jobs:
   run-bot:
-    name: Botu çalıştır
+    name: Botu çalıştır (5.5 saat dinleme + kendini yeniden tetikle)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 350
     env:
       # --- Zorunlu GitHub Secrets ---
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -47,11 +59,18 @@ jobs:
       # --- Diğer ayarlar ---
       GITHUB_REPOSITORY: ${{ github.repository }}
       PYTHONUNBUFFERED: "1"
-      # loop modunda her çalıştırmada mesaj dinlenecek süre (dakika).
-      # cron aralığından (5 dk) kısa tutulur ki çalıştırmalar üst üste binmesin.
-      LOOP_MINUTES: "4.5"
-      # Yerleşik GITHUB_TOKEN yerine PAT ile push etmek için (PAT yoksa boş kalır,
-      # o durumda checkout'tan gelen kimlik bilgisi kullanılır).
+      # loop modunda mesaj dinlenecek süre (dk): 5.5 saat. 6 saatlik döngüden
+      # kısadır ki çalıştırma, kendini yeniden tetikleyene kadar bitsin.
+      LOOP_MINUTES: "330"
+      # Her yanıtlandıktan sonra geçmişi repoya otomatik commit+push et
+      # (iki push arası en kısa süre GIT_PUSH_MIN_INTERVAL saniye). Böylece
+      # uzun oturum yarıda kesilse bile chat_history.json repoda güncel kalır.
+      GIT_PUSH_AFTER_EACH_MESSAGE: "1"
+      GIT_PUSH_MIN_INTERVAL: "15"
+      # Uzun oturumlarda heartbeat log aralığı (sn).
+      HEARTBEAT_SECONDS: "60"
+      # Yerleşik GITHUB_TOKEN yerine PAT ile push etmek için (PAT yoksa boş
+      # kalır, o durumda checkout'tan gelen kimlik bilgisi kullanılır).
       GIT_BRANCH: ${{ github.ref_name }}
 
     steps:
@@ -98,8 +117,18 @@ jobs:
           python -m py_compile bot.py
           python bot.py --self-test
 
-      - name: Botu çalıştır
+      - name: Botu çalıştır (5.5 saat dinleme)
         env:
-          # Elle çalıştırmada seçilen mod; zamanlanmış çalıştırmada "loop".
+          # Elle çalıştırmada seçilen mod; zamanlanmış/kendinden-tetiklemelerde "loop".
           BOT_MODE: ${{ github.event.inputs.mode || 'loop' }}
-        run: python bot.py --mode "${BOT_MODE:-loop}"
+          BOT_LOOP_MINUTES: ${{ github.event.inputs.loop_minutes || '330' }}
+        run: python bot.py --mode "${BOT_MODE:-loop}" --loop-minutes "${BOT_LOOP_MINUTES:-330}"
+
+      - name: Döngüyü sürdür (kendini yeniden tetikle)
+        # if: always() -> bot adımı başarısız da olsa döngü kırılmasın.
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Yeni çalıştırma tetikleniyor: mode=loop, loop_minutes=330"
+          gh workflow run bot.yml -f mode=loop -f loop_minutes=330
