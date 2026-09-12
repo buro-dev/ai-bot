@@ -39,20 +39,35 @@ gh secret set GH_PAT_TOKEN     --repo <kullanıcı>/<depo> --body "github_pat_..
 > `gh` kullanmıyorsanız değerler kullanıcı girdisi olarak sisteme verilir; token'ları hiçbir
 > zaman koda/dosyaya yazmayın.
 
-## 2) GitHub Actions ile çalıştırma
+## 2) GitHub Actions ile çalıştırma (6 saatte bir kendini yenileyen kesintisiz döngü)
 
-* İş akışı **5 dakikada bir** (UTC) ve elle (**Actions → Telegram AI Bot → Run workflow**) tetiklenir.
-* Varsayılan mod **`loop`**: bot her çalıştırmada `LOOP_MINUTES` (iş akışında `4.5` dk) boyunca uzun-polling
-  ile mesaj bekler; bu sayede yanıtlar cron aralığını beklemeden anında gönderilir. Süre bitince iş biter,
-  bir sonraki zamanlanmış çalıştırma sıraya girip dinlemeye devam eder (pratikte kesintisiz döngü).
-* Elle çalıştırmada mod seçilebilir: `loop` (süre boyunca bekle) veya `once` (tek tur, hızlı test).
-* İş akışı önce `python -m py_compile bot.py` ve `python bot.py --self-test` adımlarını çalıştırır;
-  ardından `python bot.py --mode loop` ile botu çalıştırır.
-* Aynı token ile iki örnek çakışmasın diye `concurrency: telegram-ai-bot` tanımlıdır.
+* Her çalıştırma **5.5 saat** boyunca uzun-polling ile mesaj dinler:
+  `python bot.py --mode loop --loop-minutes 330` (`timeout-minutes: 350`).
+  Yanıtlar anında gönderilir; işin sonu gelmeden yeni bir run ile uğraşmaya gerek yoktur.
+* Job'un **son adımı akışı kendini yeniden tetikler**:
+  `gh workflow run bot.yml -f mode=loop -f loop_minutes=330` (`if: always()`).
+  Böylece çalıştırmalar zincirleme şekilde 6 saatte bir kendini yenileyen,
+  kesintisiz bir dinleme döngüsü oluşturur.
+* **`cron: 0 */6 * * *` (UTC) güvenlik ağıdır:** kendinden-tetikleme zinciri bozulursa
+  (yetki/API sorunu, silinen run vb.) 6 saatlik sınırda GitHub kendiliğinden yeni
+  bir çalıştırma başlatır.
+* `permissions: contents: write` (geçmişi repoya push) + `actions: write`
+  (kendini yeniden tetikleme) tanımlıdır.
+* `concurrency: telegram-ai-bot` (`cancel-in-progress: false`): aynı anda tek örnek
+  çalışır; üst üste düşen çalıştırmalar kuyruğa girer, iptal edilmez.
+* `GIT_PUSH_AFTER_EACH_MESSAGE=1`: her yanıtlandıktan sonra `chat_history.json`
+  derhal commit+push edilir (en kısa aralık `GIT_PUSH_MIN_INTERVAL=15` sn); oturum
+  yarıda kalsa bile geçmiş repoda güncel kalır. Uzun oturumlarda `HEARTBEAT_SECONDS`
+  (vars. 60) aralıklarla loglara heartbeat kaydı (geçen/kalan süre, sayaçlar) düşülür.
+* İş akışı önce `python -m py_compile bot.py` ve `python bot.py --self-test` adımlarını
+  çalıştırır; ardından botu çalıştırır.
+* Elle çalıştırma: **Actions → Telegram AI Bot → Run workflow** (`mode`: loop/once,
+  `loop_minutes`: dinleme süresi).
 * Bot sadece `chat_history.json` dosyasını commit'ler; başka dosyalara dokunmaz.
-
-> GitHub'ın `schedule` zamanlaması yoğun saatlerde birkaç dakika gecikebilir. Yanıt süresini
-> hızlandırmak için `--mode loop` kullanın veya botu bir VPS'te sürekli çalıştırın.
+* PAT ile push ederken `actions/checkout`'un repoya yazdığı
+  `http.https://github.com/.extraheader` kaydı otomatik silinir (aksi halde git iki
+  `Authorization` başlığı gönderir, GitHub reddeder); PAT başarısız olursa checkout
+  kimliği (`GITHUB_TOKEN`) ile tekrar denenebilir.
 
 ## 3) Yerel çalıştırma
 
@@ -69,9 +84,15 @@ python bot.py --self-test                   # ağ gerektirmeyen kontroller
 python bot.py                               # auto: yerelde sürekli (polling)
 python bot.py --mode once                   # tek tur (cron/elle)
 python bot.py --mode loop --loop-minutes 10 # 10 dk boyunca mesaj bekle
-python bot.py --mode once --dry-run         # yanıtı göndermeden dene (sadece loglar)
+python bot.py --mode once --dry-run         # yanıtı göndermeden dene (sadece loglar;
+                                             # dosya ve repo DEĞİŞTİRİLMEZ)
 python bot.py --no-git                      # commit/push yapma
 ```
+
+Uzun döngüler için (`.env.example` içinde de örnekli):
+`GIT_PUSH_AFTER_EACH_MESSAGE=1` her mesajdan sonra otomatik commit+push eder
+(`GIT_PUSH_MIN_INTERVAL`, vars. 15 sn), `HEARTBEAT_SECONDS` (vars. 60) uzun
+oturumlarda heartbeat log aralığını belirler.
 
 Ayarlar `.env` dosyasından da okunur (`.env.example` şablonuna bakın).
 

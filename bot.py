@@ -20,11 +20,28 @@ Ne yapar?
 ----------------------------
 * ``once`` : Tek seferlik "yokla, işle, bitir" turu. GitHub Actions + zamanlanmış
              görev için idealdir (varsayılan: GitHub Actions içinde otomatik seçilir).
-* ``loop`` : Belirli bir süre boyunca (varsayılan 5 dk) uzun-polling yapar; bir iş
-             içinde birden çok mesajı tek commit ile işlemek için kullanılır.
+* ``loop`` : Belirli bir süre boyunca (varsayılan 5 dk) uzun-polling yapar.
+             GitHub Actions'ta 5.5 saat (``--loop-minutes 330``) dinlenir; iş akışı
+             biter bitmez kendini yeniden tetikleyerek 6 saatte bir kendini
+             yenileyen kesintisiz bir döngü oluşturur (``.github/workflows/bot.yml``).
 * ``poll`` : Sonsuz döngü (klasik uzun-polling botu). Yerel makinede / VPS'te
              ``python bot.py --mode poll`` şeklinde çalıştırılır.
 * ``auto`` : GitHub Actions ortamında ``once``, diğer ortamlarda ``poll`` seçilir.
+
+Uzun döngüler için otomatik push ve heartbeat
+---------------------------------------------
+* ``GIT_PUSH_AFTER_EACH_MESSAGE=1``: her yanıtlandıktan sonra ``chat_history.json``
+  hemen commit+push edilir. İki otomatik push arası en kısa süre
+  ``GIT_PUSH_MIN_INTERVAL`` saniyedir (varsayılan 15). Böylece 5.5 saatlik oturum
+  yarıda kesilse bile geçmiş repoda güncel kalır.
+* ``HEARTBEAT_SECONDS`` (varsayılan 60): uzun oturumlarda (loop/poll modları)
+  loglara düzenli "heartbeat" kaydı düşülür: geçen/kalan süre, işlenen mesaj,
+  yanıt ve hata sayıları.
+
+``--dry-run``
+-------------
+* Telegram'a mesaj gönderilmez ve ``chat_history.json`` / repo DEĞİŞTİRİLMEZ:
+  dosya yazılmaz, commit/push yapılmaz; her şey yalnızca loglanır.
 
 Kullanım
 --------
@@ -219,6 +236,8 @@ class Config:
     max_prompt_chars: int = 24000
 
     git_push_enabled: bool = True
+    git_push_after_each_message: bool = False
+    git_push_min_interval: float = 15.0
     git_branch: Optional[str] = None
     git_remote: str = "origin"
     git_user_name: str = "telegram-ai-bot"
@@ -228,6 +247,7 @@ class Config:
     mode: str = "auto"
     loop_minutes: float = 5.0
     long_poll_seconds: float = 25.0
+    heartbeat_seconds: float = 60.0
     max_rounds: int = 3
     dry_run: bool = False
     allow_unauthenticated_id_setup: bool = False
@@ -336,6 +356,8 @@ def load_config(args: argparse.Namespace) -> Config:
         max_history_messages=args.max_history if args.max_history is not None else _env_int("MAX_HISTORY_MESSAGES", 40),
         max_prompt_chars=_env_int("MAX_PROMPT_CHARS", 24000),
         git_push_enabled=not args.no_git and _env_bool("GIT_PUSH_ENABLED", True),
+        git_push_after_each_message=_env_bool("GIT_PUSH_AFTER_EACH_MESSAGE", False),
+        git_push_min_interval=_env_float("GIT_PUSH_MIN_INTERVAL", 15.0),
         git_branch=git_branch,
         git_remote=_env("GIT_REMOTE", default="origin") or "origin",
         git_user_name=_env("GIT_USER_NAME", default="telegram-ai-bot") or "telegram-ai-bot",
@@ -345,6 +367,7 @@ def load_config(args: argparse.Namespace) -> Config:
         mode=mode,
         loop_minutes=args.loop_minutes if args.loop_minutes is not None else _env_float("LOOP_MINUTES", 5.0),
         long_poll_seconds=args.long_poll if args.long_poll is not None else _env_float("LONG_POLL_SECONDS", 25.0),
+        heartbeat_seconds=_env_float("HEARTBEAT_SECONDS", 60.0),
         max_rounds=args.max_rounds if args.max_rounds is not None else _env_int("MAX_ROUNDS", 3),
         dry_run=bool(args.dry_run),
         allow_unauthenticated_id_setup=_env_bool("TELEGRAM_ALLOW_UNAUTHENTICATED_ID", False),
@@ -443,9 +466,10 @@ class HistoryStore:
 
     VALID_ROLES = {"system", "user", "assistant"}
 
-    def __init__(self, path: Path, max_messages: int = 40) -> None:
+    def __init__(self, path: Path, max_messages: int = 40, dry_run: bool = False) -> None:
         self.path = Path(path)
         self.max_messages = max_messages
+        self.dry_run = dry_run
         self._messages: List[Dict[str, str]] = []
         self._dirty = False
 
@@ -470,7 +494,10 @@ class HistoryStore:
 
     def load(self) -> List[Dict[str, str]]:
         if not self.path.exists():
-            LOGGER.info("Geçmiş dosyası yok, oluşturuluyor: %s", self.path)
+            if self.dry_run:
+                LOGGER.info("[DRY-RUN] Geçmiş dosyası yok; dry-run için dosya oluşturulmuyor: %s", self.path)
+            else:
+                LOGGER.info("Geçmiş dosyası yok, oluşturuluyor: %s", self.path)
             self._messages = []
             self._dirty = True
             self.save()
@@ -487,6 +514,14 @@ class HistoryStore:
             try:
                 raw = json.loads(raw_text)
             except json.JSONDecodeError as exc:
+                if self.dry_run:
+                    LOGGER.warning(
+                        "[DRY-RUN] Geçmiş dosyası bozuk JSON (%s); dry-run için dosyaya "
+                        "dokunulmadı, boş geçmiş kullanılıyor." % exc
+                    )
+                    self._messages = []
+                    self._dirty = False
+                    return list(self._messages)
                 # Bozuk dosyayı kaybetmemek için yedekleyip sıfırdan başla.
                 backup = self.path.with_suffix(self.path.suffix + ".bozuk-yedek")
                 try:
@@ -510,6 +545,10 @@ class HistoryStore:
 
     def save(self) -> None:
         """Dosyayı atomik olarak yazar (yarım dosya kalma riski yok)."""
+        if self.dry_run:
+            LOGGER.info("[DRY-RUN] Geçmiş dosyasına yazılmadı (değişiklik atlandı): %s", self.path)
+            self._dirty = False
+            return
         if self.max_messages and self.max_messages > 0:
             self._messages = self._messages[-self.max_messages :]
         payload = json.dumps(self._messages, ensure_ascii=False, indent=2) + "\n"
@@ -682,6 +721,10 @@ class GitSync:
 
     # -- ana işlem ----------------------------------------------------------
     def commit_and_push(self, commit_message: str) -> GitResult:
+        if self.cfg.dry_run:
+            LOGGER.info("[DRY-RUN] git commit/push atlandı; repoya dokunulmadı.")
+            return GitResult(True, False, "dry-run: atlandı")
+
         if not self.cfg.git_push_enabled:
             LOGGER.info("Git push devre dışı (--no-git / GIT_PUSH_ENABLED=0).")
             return GitResult(ok=False, pushed=False, detail="devre dışı")
@@ -745,8 +788,40 @@ class GitSync:
                 % commit_hash,
             )
 
+        # PAT ile ağ işlemlerinden ÖNCE: actions/checkout'un (persist-credentials: true)
+        # repo config'ine yazdığı http.https://github.com/.extraheader kaydını sil.
+        # Silinmezse git İKİ Authorization başlığı gönderir ve GitHub isteği reddeder.
+        # (PAT yoksa bu kayıt checkout kimliği olarak kullanıldığı için bırakılır.)
+        if self.cfg.gh_pat_token:
+            self.clear_checkout_extraheader()
+
+        push_rc, push_stderr = self._fetch_rebase_and_push(branch, self.cfg.gh_pat_token)
+
+        # PAT başarısız olduysa checkout kimliği (GITHUB_TOKEN) ile tekrar dene.
+        if push_rc != 0 and self.cfg.gh_pat_token:
+            checkout_token = _env("GITHUB_TOKEN")
+            if checkout_token and checkout_token != self.cfg.gh_pat_token:
+                LOGGER.warning("PAT ile push başarısız; checkout kimliği (GITHUB_TOKEN) ile tekrar denenecek.")
+                push_rc, push_stderr = self._fetch_rebase_and_push(branch, checkout_token)
+
+        if push_rc == 0:
+            LOGGER.info("Git push tamam: %s (%s) -> %s", commit_hash, commit_message, branch)
+            return GitResult(True, True, "push ok (%s)" % branch)
+
+        stderr = redact(push_stderr.strip(), self.secrets)
+        detail = "git push başarısız: %s" % (stderr or "bilinmeyen hata")
+        if not self.cfg.gh_pat_token:
+            detail += (
+                " | İpucu: GH_PAT_TOKEN tanımlı değil. Actions varsayılan token'ı salt-okunur olabilir; "
+                "içerik yazma yetkili fine-grained PAT tanımlayın."
+            )
+        LOGGER.error(detail)
+        return GitResult(False, False, detail)
+
+    def _fetch_rebase_and_push(self, branch: str, token: Optional[str]) -> Tuple[int, str]:
+        """Uzak dali çeker, rebase eder ve push'lar. ``(push_rc, push_stderr)`` döndürür."""
         remote_branch = "%s/%s" % (self.cfg.git_remote, branch)
-        fetch = self._run(["git", "fetch", "--quiet", self.cfg.git_remote, branch], token=self.cfg.gh_pat_token)
+        fetch = self._run(["git", "fetch", "--quiet", self.cfg.git_remote, branch], token=token)
         if fetch.returncode == 0:
             rebase = self._run(["git", "rebase", "--quiet", remote_branch])
             if rebase.returncode != 0:
@@ -756,24 +831,34 @@ class GitSync:
                 self._run(["git", "rebase", "--abort"])
         else:
             LOGGER.debug("Uzak dal çekilemedi, doğrudan push denenecek.")
-
         push = self._run(
             ["git", "push", self.cfg.git_remote, "HEAD:refs/heads/%s" % branch],
-            token=self.cfg.gh_pat_token,
+            token=token,
         )
-        if push.returncode == 0:
-            LOGGER.info("Git push tamam: %s (%s) -> %s", commit_hash, commit_message, branch)
-            return GitResult(True, True, "push ok (%s)" % branch)
+        return push.returncode, push.stderr
 
-        stderr = redact(push.stderr.strip(), self.secrets)
-        detail = "git push başarısız: %s" % (stderr or "bilinmeyen hata")
-        if not self.cfg.gh_pat_token:
-            detail += (
-                " | İpucu: GH_PAT_TOKEN tanımlı değil. Actions varsayılan token'ı salt-okunur olabilir; "
-                "içerik yazma yetkili fine-grained PAT tanımlayın."
+    #: actions/checkout (persist-credentials: true) GITHUB_TOKEN ile bu anahtarı
+    #: repoya yerel config'e yazar; PAT tabanlı ikinci bir header eklenirse çakışır.
+    CHECKOUT_EXTRAHEADER_KEY = "http.https://github.com/.extraheader"
+
+    def clear_checkout_extraheader(self) -> bool:
+        """Repo config'inden ``http.https://github.com/.extraheader`` kaydını siler.
+
+        ``actions/checkout`` (``persist-credentials: true``) bu anahtarı
+        GITHUB_TOKEN tabanlı bir ``Authorization`` başlığıyla yazar. Üzerine PAT
+        tabanlı ikinci bir ``.extraheader`` eklenirse git iki ``Authorization``
+        başlığı gönderir ve GitHub isteği reddeder; bu yüzden PAT ile push
+        etmeden önce kayıt ``git config --local --unset-all`` ile temizlenir.
+        Kayıt yoksa hata vermeden False döner.
+        """
+        result = self._run(["git", "config", "--local", "--unset-all", self.CHECKOUT_EXTRAHEADER_KEY])
+        if result.returncode == 0:
+            LOGGER.info(
+                "actions/checkout'un yazdığı %s kaydı silindi (PAT ile push için).",
+                self.CHECKOUT_EXTRAHEADER_KEY,
             )
-        LOGGER.error(detail)
-        return GitResult(False, False, detail)
+            return True
+        return False
 
     @staticmethod
     def _infer_branch_from_env() -> Optional[str]:
@@ -964,6 +1049,7 @@ class BotRunner:
         self._finalized = False
         self.push_failed = False
         self._started_at = time.monotonic()
+        self._last_push_at: Optional[float] = None
 
     # -- Telegram'a gönderme ------------------------------------------------
     async def send(self, bot: Bot, chat_id: int, text: str, reply_to: Optional[int] = None) -> None:
@@ -1118,6 +1204,55 @@ class BotRunner:
         self.replied += 1
         LOGGER.info("Yanıt gönderildi (model=%s, %d karakter).", model, len(reply_text))
 
+        # Uzun döngülerde (GIT_PUSH_AFTER_EACH_MESSAGE=1) geçmişi repoya anında gönder.
+        self._push_after_message()
+
+    # -- Otomatik push (mesaj sonrası) ---------------------------------------
+    def _push_after_message(self) -> None:
+        """``GIT_PUSH_AFTER_EACH_MESSAGE=1``: her mesajdan sonra otomatik commit+push.
+
+        İki otomatik push arası en kısa ``git_push_min_interval`` saniyedir;
+        aralık dolmamışsa değişiklik bir sonraki push'a (veya tur sonundaki
+        push'a) kalır. Başarısız bir otomatik push turu batırmaz: tur sonundaki
+        ``finalize()`` yine de kalan değişiklikleri push'lar.
+        """
+        if self.cfg.dry_run or not self.cfg.git_push_after_each_message or not self.cfg.git_push_enabled:
+            return
+        now = time.monotonic()
+        if self._last_push_at is not None and (now - self._last_push_at) < self.cfg.git_push_min_interval:
+            LOGGER.info(
+                "Otomatik push: en kısa aralık (%.0f sn) dolmadı; değişiklik tur sonunda gönderilecek.",
+                self.cfg.git_push_min_interval,
+            )
+            return
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        message = "%s: %s (+%d mesaj, model=%s, otomatik push)" % (
+            self.cfg.commit_message_prefix,
+            stamp,
+            self.new_messages,
+            self.chat.active_model,
+        )
+        result = self.git.commit_and_push(message)
+        if result.pushed:
+            self._last_push_at = time.monotonic()
+            LOGGER.info("Otomatik push tamam: %s", result.detail)
+        elif result.ok:
+            LOGGER.debug("Otomatik push: sahneye alınacak yeni değişiklik yok (%s).", result.detail)
+        else:
+            LOGGER.warning("Otomatik push başarısız (tur sonundaki push ile tekrar denenecek): %s", result.detail)
+
+    # -- Heartbeat (uzun oturumlar) -------------------------------------------
+    def log_heartbeat(self, _context: Any = None) -> None:
+        """Polling modunda job kuyruğu tarafından periyodik çağrılan heartbeat."""
+        LOGGER.info(
+            "Heartbeat: %.1f dkdır | işlenen=%d, yanıt=%d, hata=%d, geçmiş=%d kayıt",
+            (time.monotonic() - self._started_at) / 60.0,
+            self.processed,
+            self.replied,
+            self.errors,
+            len(self.history),
+        )
+
     # -- Hata yakalama ------------------------------------------------------
     async def on_error(self, update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handler içinde oluşan beklenmeyen hataları loglar."""
@@ -1166,29 +1301,32 @@ class BotRunner:
                 LOGGER.error("Geçmiş kaydedilemedi: %s", exc)
 
         if self._history_dirty:
-            LOGGER.info("Geçmiş değişti; git commit + push deneniyor.")
-            stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-            if self._cleared and self.new_messages == 0:
-                message = "%s temizlendi: %s" % (self.cfg.commit_message_prefix, stamp)
+            if self.cfg.dry_run:
+                LOGGER.info("[DRY-RUN] commit/push atlandı; dosya ve repo değiştirilmedi.")
             else:
-                message = "%s: %s (+%d mesaj, model=%s)" % (
-                    self.cfg.commit_message_prefix,
-                    stamp,
-                    self.new_messages,
-                    self.chat.active_model,
-                )
-            result = self.git.commit_and_push(message)
-            if result.pushed:
-                LOGGER.info("Sohbet geçmişi repoya gönderildi (%s).", result.detail)
-            elif result.ok:
-                LOGGER.info("Push gerekmedi (%s).", result.detail)
-            elif self.cfg.git_push_enabled:
-                self.push_failed = True
-                LOGGER.error(
-                    "Sohbet geçmişi repoya push edilemedi (%s). Yanıtlar kullanıcıya iletildi, "
-                    "ancak geçmiş uzak repoda güncel değil.",
-                    result.detail,
-                )
+                LOGGER.info("Geçmiş değişti; git commit + push deneniyor.")
+                stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+                if self._cleared and self.new_messages == 0:
+                    message = "%s temizlendi: %s" % (self.cfg.commit_message_prefix, stamp)
+                else:
+                    message = "%s: %s (+%d mesaj, model=%s)" % (
+                        self.cfg.commit_message_prefix,
+                        stamp,
+                        self.new_messages,
+                        self.chat.active_model,
+                    )
+                result = self.git.commit_and_push(message)
+                if result.pushed:
+                    LOGGER.info("Sohbet geçmişi repoya gönderildi (%s).", result.detail)
+                elif result.ok:
+                    LOGGER.info("Push gerekmedi (%s).", result.detail)
+                elif self.cfg.git_push_enabled:
+                    self.push_failed = True
+                    LOGGER.error(
+                        "Sohbet geçmişi repoya push edilemedi (%s). Yanıtlar kullanıcıya iletildi, "
+                        "ancak geçmiş uzak repoda güncel değil.",
+                        result.detail,
+                    )
         LOGGER.info(
             "Tur bitti (%s): işlenen=%d, yanıtlanan=%d, hata=%d, geçmiş=%d kayıt",
             reason,
@@ -1252,7 +1390,9 @@ async def run_once_or_loop(application: Application, runner: BotRunner, cfg: Con
     """``once`` ve ``loop`` modlarında güncellemeleri elle işler."""
     bot = application.bot
     offset: Optional[int] = None
-    deadline = time.monotonic() + max(5.0, cfg.loop_minutes * 60.0) if mode == "loop" else None
+    start = time.monotonic()
+    deadline = start + max(5.0, cfg.loop_minutes * 60.0) if mode == "loop" else None
+    last_heartbeat = start
 
     if cfg.long_poll_seconds > 0:
         timeout = cfg.long_poll_seconds
@@ -1267,6 +1407,21 @@ async def run_once_or_loop(application: Application, runner: BotRunner, cfg: Con
         if mode == "once" and rounds >= max(1, cfg.max_rounds):
             LOGGER.info("Maksimum tur sayısına ulaşıldı (%d).", rounds)
             break
+
+        # Uzun oturumlarda canlılık kaydı: geçen/kalan süre ve sayaçlar loglanır.
+        if mode == "loop" and deadline is not None and cfg.heartbeat_seconds > 0:
+            now = time.monotonic()
+            if now - last_heartbeat >= cfg.heartbeat_seconds:
+                LOGGER.info(
+                    "Heartbeat: %.1f dk geçti (kalan ~%.1f dk) | işlenen=%d, yanıt=%d, hata=%d, geçmiş=%d kayıt",
+                    (now - start) / 60.0,
+                    max(0.0, (deadline - now) / 60.0),
+                    runner.processed,
+                    runner.replied,
+                    runner.errors,
+                    len(runner.history),
+                )
+                last_heartbeat = now
 
         try:
             updates = await fetch_updates(bot, offset, timeout)
@@ -1301,6 +1456,24 @@ async def run_once_or_loop(application: Application, runner: BotRunner, cfg: Con
 def run_polling(application: Application, runner: BotRunner, cfg: Config) -> int:
     """Klasik sonsuz polling modu (yerel makine / VPS)."""
     LOGGER.info("Polling (sonsuz döngü) başlatılıyor. Durdurmak için Ctrl+C.")
+
+    # Uzun oturumda düzenli heartbeat logu (PTB job kuyruğu üzerinden).
+    if cfg.heartbeat_seconds > 0:
+        job_queue = getattr(application, "job_queue", None)
+        if job_queue is not None:
+            try:
+                job_queue.run_repeating(
+                    runner.log_heartbeat,
+                    interval=cfg.heartbeat_seconds,
+                    first=cfg.heartbeat_seconds,
+                    name="heartbeat",
+                )
+                LOGGER.info("Heartbeat kayıtları %.0f saniyede bir yazılacak.", cfg.heartbeat_seconds)
+            except Exception as exc:  # noqa: BLE001 - heartbeat olmadan da devam edebilmeli
+                LOGGER.warning("Heartbeat job'ı kurulamadı (yok sayıldı): %s", exc)
+        else:
+            LOGGER.debug("Job kuyruğu yok; heartbeat kaydı yapılamayacak.")
+
     try:
         # PTB, SIGINT/SIGTERM sinyallerini kendisi yakalar ve düzgün kapatır.
         application.run_polling(
@@ -1334,7 +1507,7 @@ def run(args: argparse.Namespace) -> int:
     if not cfg.gh_pat_token:
         LOGGER.warning("GH_PAT_TOKEN yok: git push başarısız olabilir (salt-okunur token).")
 
-    history = HistoryStore(cfg.history_file, max_messages=cfg.max_history_messages)
+    history = HistoryStore(cfg.history_file, max_messages=cfg.max_history_messages, dry_run=cfg.dry_run)
     history.load()
     LOGGER.info("Geçmiş yüklendi: %d kayıt.", len(history))
 
@@ -1343,7 +1516,7 @@ def run(args: argparse.Namespace) -> int:
     runner = BotRunner(cfg, chat, history, git)
 
     if cfg.dry_run:
-        LOGGER.warning("DRY-RUN: Telegram'a mesaj gönderilmeyecek.")
+        LOGGER.warning("DRY-RUN: Telegram'a mesaj gönderilmeyecek; geçmiş dosyası ve repo DEĞİŞTİRİLMEYECEK.")
 
     use_updater = mode == "poll"
     application = build_application(cfg, runner, use_updater=use_updater)
@@ -1442,6 +1615,20 @@ def run_self_tests() -> int:
         check("workflow: python bot.py", "python bot.py" in content)
         for secret in ("TELEGRAM_TOKEN", "ALLOWED_USER_ID", "GROQ_API_KEY", "GH_PAT_TOKEN"):
             check("workflow: %s" % secret, secret in content)
+        check("workflow: loop_minutes girdisi tanımlı", "loop_minutes" in content)
+        check("workflow: 5.5 saat dinleme (330)", "330" in content)
+        check("workflow: timeout-minutes 350", "timeout-minutes: 350" in content)
+        check("workflow: kendinden-tetikleme (gh workflow run)", "gh workflow run" in content)
+        check("workflow: yeniden tetikleme if: always()", "if: always()" in content)
+        check("workflow: güvenlik ağı cron (0 */6 * * *)", "0 */6 * * *" in content)
+        check(
+            "workflow: contents + actions yazma izni",
+            "contents: write" in content and "actions: write" in content,
+        )
+        check(
+            "workflow: concurrency grubu (iptal etmeden sıra)",
+            "group: telegram-ai-bot" in content and "cancel-in-progress: false" in content,
+        )
         try:
             import yaml  # type: ignore
 
@@ -1525,6 +1712,88 @@ def run_self_tests() -> int:
     check("maskeli özet anahtar içermiyor", "gsk_TESTKEY" not in cfg.masked() and "TESTTOKEN" not in cfg.masked())
     check("varsayılan model doğru", cfg.models[0] == DEFAULT_MODEL, DEFAULT_MODEL)
     check("varsayılan geçmiş yolu", cfg.history_file == DEFAULT_HISTORY_FILE)
+    cfg_pm = _dummy_config(git_push_after_each_message=True, git_push_min_interval=15.0, heartbeat_seconds=60.0)
+    check(
+        "per-message push + heartbeat ayarları",
+        cfg_pm.git_push_after_each_message and cfg_pm.git_push_min_interval == 15.0 and cfg_pm.heartbeat_seconds == 60.0,
+    )
+
+    # --- Git: checkout extraheader temizliği (PAT push çakışması) ---
+    print("\nGit extraheader temizliği (PAT push çakışması):")
+    if shutil.which("git"):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=str(repo), check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "test"], cwd=str(repo), check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=str(repo), check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "config",
+                    "--local",
+                    "--add",
+                    GitSync.CHECKOUT_EXTRAHEADER_KEY,
+                    "AUTHORIZATION: basic TESTBASE64DEGER",
+                ],
+                cwd=str(repo),
+                check=True,
+            )
+            git_sync = GitSync(repo, repo / "chat_history.json", _dummy_config())
+            check("checkout extraheader'ı temizleniyor", git_sync.clear_checkout_extraheader() is True)
+            leftover = subprocess.run(
+                ["git", "config", "--local", "--get-all", GitSync.CHECKOUT_EXTRAHEADER_KEY],
+                cwd=str(repo),
+                capture_output=True,
+                text=True,
+            )
+            check("ekstra Authorization başlığı repodan temizlendi", leftover.stdout.strip() == "")
+            check("kayıt yokken ikinci temizleme hatasız", git_sync.clear_checkout_extraheader() is False)
+    else:
+        print("  [ATLA] git kurulu değil; extraheader temizliği denetlemesi atlandı.")
+
+    # --- Dry-run: dosya ve repo değişmemeli ---
+    print("\nDry-run bütünlüğü (dosya/repo değişmez):")
+    with tempfile.TemporaryDirectory() as tmp:
+        no_file = Path(tmp) / "yok.json"
+        no_store = HistoryStore(no_file, max_messages=4, dry_run=True)
+        no_store.load()
+        check("dry-run: eksik geçmiş dosyası oluşturulmuyor", not no_file.exists())
+        no_store.append("user", "kuru deneme")
+        no_store.save()
+        check("dry-run: append/save dosya üretmiyor", not no_file.exists())
+
+    if shutil.which("git"):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init", "-q"], cwd=str(repo), check=True, capture_output=True)
+            subprocess.run(["git", "config", "user.name", "test"], cwd=str(repo), check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=str(repo), check=True)
+            hist_path = repo / "chat_history.json"
+            hist_path.write_text("[]\n", encoding="utf-8")
+            subprocess.run(["git", "add", "chat_history.json"], cwd=str(repo), check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "ilk"], cwd=str(repo), check=True)
+
+            store = HistoryStore(hist_path, max_messages=4, dry_run=True)
+            store.load()
+            store.append("user", "kuru deneme")
+            store.append("assistant", "yanıt")
+            store.save()
+            check("dry-run: mevcut geçmiş dosyası değişmedi", hist_path.read_text(encoding="utf-8") == "[]\n")
+
+            cfg_dry = _dummy_config(dry_run=True, git_push_after_each_message=True)
+            git_sync = GitSync(repo, hist_path, cfg_dry)
+            result = git_sync.commit_and_push("dry-run deneme commit'i")
+            check("dry-run: commit_and_push push atmıyor", result.ok is True and result.pushed is False)
+            head_count = subprocess.run(
+                ["git", "rev-list", "--count", "HEAD"], cwd=str(repo), capture_output=True, text=True
+            ).stdout.strip()
+            status = subprocess.run(
+                ["git", "status", "--porcelain"], cwd=str(repo), capture_output=True, text=True
+            ).stdout.strip()
+            check("dry-run: yeni commit oluşmadı", head_count == "1", "%s commit" % head_count)
+            check("dry-run: repo temiz (git status boş)", status == "")
+    else:
+        print("  [ATLA] git kurulu değil; dry-run repo denetlemesi atlandı.")
 
     # --- argparse ---
     print("\nCLI:")
@@ -1571,7 +1840,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--max-history", type=int, default=None, help="geçmişte tutulacak en fazla mesaj (0=sınırsız)")
     parser.add_argument("--git-branch", default=None, help="push edilecek dal (varsayılan: aktif dal)")
     parser.add_argument("--no-git", action="store_true", help="git add/commit/push adımlarını atla")
-    parser.add_argument("--dry-run", action="store_true", help="Telegram'a mesaj gönderme, sadece logla")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Telegram'a mesaj gönderme; geçmiş dosyasını ve repoyu DEĞİŞTİRME (yalnızca logla)",
+    )
     parser.add_argument("--self-test", action="store_true", help="iç testleri çalıştır ve çık")
     parser.add_argument("-v", "--verbose", action="store_true", help="ayrıntılı (DEBUG) log")
     parser.add_argument("-q", "--quiet", action="store_true", help="sadece uyarılar")
