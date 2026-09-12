@@ -1,0 +1,50 @@
+name: Run Matrix Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: 'Bot kaç dakika dinlesin? (5-340 arası)'
+        required: false
+        default: '60'
+  schedule:
+    # Her 6 saatte bir çalışır. Bot her çalışmada BOT_RUN_MINUTES kadar dinler,
+    # sonra düzgünce kapanır (geçmişi repoya push ederek).
+    #
+    # NOT: Repo PUBLIC ise BOT_RUN_MINUTES'i 340 yaparsan bot ~7/24 ayakta kalır
+    # (6 saatte bir yeniden başlar, arada ~20 dk boşluk olur).
+    # Repo PRIVATE ise ücretsiz plan ayda 2.000 dk limiti olduğundan
+    # varsayılan 15 dk (ayda ~1.800 dk) kullanılır.
+    - cron: '0 */6 * * *'
+
+permissions:
+  contents: write        # chat_history.json'u repoya push edebilmek için
+
+concurrency:
+  group: matrix-bot      # aynı anda iki bot çalışmasın (çift cevap engellenir)
+  cancel-in-progress: true
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+      - name: Run Bot
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MATRIX_USER: ${{ secrets.MATRIX_USER }}
+          MATRIX_TOKEN: ${{ secrets.MATRIX_TOKEN }}
+          MATRIX_OWNER: ${{ secrets.MATRIX_OWNER }}
+          # PAT eklemediysen sorun yok: Actions'ın kendi token'ı
+          # aynı repoya push için yeterli (GH_PAT_TOKEN opsiyoneldir).
+          GH_PAT_TOKEN: ${{ secrets.GH_PAT_TOKEN || github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          BOT_RUN_MINUTES: ${{ github.event.inputs.minutes || '15' }}
+        run: python bot.py
