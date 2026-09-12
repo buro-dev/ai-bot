@@ -1,0 +1,17 @@
+# Yerel sanal ortam ve Python çıktıları
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Gizli değerler (asla commit'lenmemeli)
+.env
+
+# Geçmiş dosyasının bozuk yedeği (bot otomatik oluşturur)
+chat_history.json.bozuk-yedek
+
+# Editör / işletim sistemi dosyaları
+.idea/
+.vscode/
+.DS_Store
