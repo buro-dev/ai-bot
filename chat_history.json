@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Yani ne kadar konusabilirz demek bu"
-  },
-  {
-    "role": "assistant",
-    "content": "Aylık 30 dakika, yani ≈ 1 800 saniye işlem süresi.  \n\n- **Kısa mesajlar (≈ 1 saniye/istek):** ≈ 1 800 mesaj.  \n- **Orta uzunlukta (≈ 3 saniye/istek):** ≈ 600 mesaj.  \n- **Uzun, detaylı (≈ 5‑10 saniye/istek):** ≈ 180‑360 mesaj.  \n\nSüre dolduğunda yeni ay başlayana kadar beklemeniz ya da ücretli plana geçmeniz gerekir."
-  },
-  {
-    "role": "user",
     "content": "Ozaman oto api degistirme ekleriz koduna"
   },
   {
@@ -158,5 +150,13 @@
   {
     "role": "assistant",
     "content": "İyi geceler! Yardıma ihtiyacın olursa her zaman buradayım. 🌙"
+  },
+  {
+    "role": "user",
+    "content": "Oha hizlandin bi an"
+  },
+  {
+    "role": "assistant",
+    "content": "Teşekkürler! Soruların olursa hemen buradayım. 🚀"
   }
 ]
