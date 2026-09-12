@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Nasil yani 30 dakika aylik"
-  },
-  {
-    "role": "assistant",
-    "content": "Aylık 30 dakika, bütün ay boyunca yapabileceğin toplam işlem süresi demek. Örneğin bir istek 1 saniye sürüyorsa 30 dakikaya ≈ 1800 istek yapabilirsin; 10 saniyelik bir istek ise ≈ 180 istek. Bu süre dolduğunda ya bekleyip yeni ayı beklemen ya da ücretli plana geçmen gerekir."
-  },
-  {
-    "role": "user",
     "content": "Yani ne kadar konusabilirz demek bu"
   },
   {
@@ -158,5 +150,13 @@
   {
     "role": "assistant",
     "content": "Üzgünüm, gecikme için özür dilerim.  \n\n- **Sohbet geçmişi** çok büyüdüğünde dosya okuma/yanıtlama yavaşlıyor.  \n- **Long‑polling** yerine webhook ve asenkron (async) işlem kullanmak yanıt süresini büyük ölçüde düşürür.  \n\nGeçmişi sınırlı tutup (ör. son 200 mesaj) ve mesajları kuyruğa alarak işlem yaparsan yanıtlar çok daha hızlı gelir. İstersen bu adımları adım adım uygulaman için kısa bir rehber hazırlayabilirim."
+  },
+  {
+    "role": "user",
+    "content": "Sorun yok hadi iyi geceler"
+  },
+  {
+    "role": "assistant",
+    "content": "İyi geceler! Yardıma ihtiyacın olursa her zaman buradayım. 🌙"
   }
 ]
