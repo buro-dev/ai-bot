@@ -1,14 +1,6 @@
 [
   {
     "role": "user",
-    "content": "Hangi model"
-  },
-  {
-    "role": "assistant",
-    "content": "GPT‑4 tabanlı bir modelim."
-  },
-  {
-    "role": "user",
     "content": "Guzel"
   },
   {
@@ -158,5 +150,13 @@
   {
     "role": "assistant",
     "content": "Telegram’da mesajları **kalın** (bold) göstermek için botun **parse_mode** parametresini doğru ayarlaman gerekir. İki yaygın yöntem:\n\n1. **MarkdownV2**  \n   ```python\n   bot.send_message(\n       chat_id=chat_id,\n       text=\"*Kalın metin*\",\n       parse_mode=\"MarkdownV2\"\n   )\n   ```\n   *Not:* `*` karakterini kaçış (`\\*`) yapman, `\\`, `_`, `` ` `` gibi diğer özel karakterleri de aynı şekilde kaçırman gerekir.\n\n2. **HTML**  \n   ```python\n   bot.send_message(\n       chat_id=chat_id,\n       text=\"<b>Kalın metin</b>\",\n       parse_mode=\"HTML\"\n   )\n   ```\n   HTML etiketlerini ( `<b>`, `<strong>` ) kullan.\n\n**Sık yapılan hata:**  \n- `parse_mode`’u belirtmemek → Telegram düz metin olarak gönderir.  \n- MarkdownV2’de özel karakterleri kaçırmadan göndermek → format bozulur ve kalın görünmez.\n\n**Kısaca yapman gerekenler**\n```python\ntext = \"*Kalın metin*\"\nbot.send_message(chat_id, text, parse_mode=\"MarkdownV2\")\n# ya da\ntext = \"<b>Kalın metin</b>\"\nbot.send_message(chat_id, text, parse_mode=\"HTML\")\n```\n\nBu şekilde gönderdiğin mesajlarda kalın harfler düzgün görüntülenecektir."
+  },
+  {
+    "role": "user",
+    "content": "Kod yazmaki sey olmasin token gitmesin"
+  },
+  {
+    "role": "assistant",
+    "content": "Token’ı kod içinde yazma; **ortam değişkeni** ya da **GitHub Secrets** üzerinden al.\n\n```python\nimport os\nfrom telegram import Bot\n\n# Token .env dosyasından / CI secret'ından okunur\nTOKEN = os.getenv(\"TELEGRAM_BOT_TOKEN\")   # örn. GitHub Actions’da ${{ secrets.TELEGRAM_BOT_TOKEN }}\n\nbot = Bot(token=TOKEN)\n\ndef gönder(chat_id, mesaj):\n    bot.send_message(chat_id=chat_id,\n                     text=mesaj,\n                     parse_mode=\"HTML\")   # <b>Kalın</b> gibi\n\n# kullanım\ngönder(123456789, \"<b>Merhaba!</b>\")\n```\n\n- **.env** dosyasını `.gitignore`‑a ekle.  \n- CI/CD ortamında (GitHub Actions, Railway vb.) **Secrets** kısmına `TELEGRAM_BOT_TOKEN` ekle.  \nBu sayede token kodda asla görünmez."
   }
 ]
