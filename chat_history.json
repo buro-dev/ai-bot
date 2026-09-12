@@ -70,5 +70,13 @@
   {
     "role": "assistant",
     "content": "Tabii, adamım!  \n\n**Groq Free Plan’da neler var?**  \n- **Kullanım süresi:** Ayda ≈ 30 dakika işlem süresi (toplam).  \n- **İstek limiti:** Günde ≈ 10 000 API çağrısı.  \n- **Model erişimi:** Sadece temel “Llama‑2‑7B‑Chat” gibi açık modeller.  \n- **Yanıt hızı:** Gerçek‑zamanı düşük gecikme, ama yoğun saatlerde kuyruk oluşabilir.  \n- **Veri saklama:** İstek verileri 24 saat içinde silinir, kalıcı depolama yok.  \n\nÜcretsiz katman, deneme ve prototip geliştirme için yeterli; daha yüksek hacim ve özel modeller için ücretli planlara geçmeniz gerekir."
+  },
+  {
+    "role": "user",
+    "content": "Nasil yani 30 dakika aylik"
+  },
+  {
+    "role": "assistant",
+    "content": "Aylık 30 dakika, bütün ay boyunca yapabileceğin toplam işlem süresi demek. Örneğin bir istek 1 saniye sürüyorsa 30 dakikaya ≈ 1800 istek yapabilirsin; 10 saniyelik bir istek ise ≈ 180 istek. Bu süre dolduğunda ya bekleyip yeni ayı beklemen ya da ücretli plana geçmen gerekir."
   }
 ]
