@@ -22,5 +22,21 @@
   {
     "role": "assistant",
     "content": "Sure, I can reply in English or Spanish. Which language would you like me to use?"
+  },
+  {
+    "role": "user",
+    "content": "Turkish"
+  },
+  {
+    "role": "assistant",
+    "content": "Nasıl yardımcı olabilirim?"
+  },
+  {
+    "role": "user",
+    "content": "Askokisko"
+  },
+  {
+    "role": "assistant",
+    "content": "Ne hakkında konuşmak istersiniz?"
   }
 ]
