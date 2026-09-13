@@ -6,5 +6,13 @@
   {
     "role": "assistant",
     "content": "Günaydın!"
+  },
+  {
+    "role": "user",
+    "content": "Balli turta"
+  },
+  {
+    "role": "assistant",
+    "content": "Bal ve un ile yapabileceğiniz basit bal turtası tarifi:\n\n**Malzemeler**\n- 200 g tereyağı (oda sıcaklığında)\n- 150 g toz şeker\n- 2 yumurta\n- 1 su bardağı bal\n- 1 su bardağı süt\n- 2,5 su bardağı un\n- 1 paket kabartma tozu\n- 1 çay kaşığı tarçın (isteğe bağlı)\n\n**Hazırlık**\n1. Fırını 180 °C’ye ısıt, 22 cm’lik yuvarlak bir kalıbı yağla.\n2. Tereyağı ve şekeri krem kıvamına gelene kadar çırp.\n3. Yumurtaları teker teker ekle, ardından balı ve sütü karıştır.\n4. Un, kabartma tozu ve tarçını eleyerek ekle, pürüzsüz bir hamur elde edene kadar karıştır.\n5. Hamuru kalıba dök ve 35‑40 dk, üzeri altın rengini alana kadar pişir.\n6. Soğuduktan sonra dilimleyip servis et.\n\nAfiyet olsun!"
   }
 ]
