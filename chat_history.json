@@ -46,5 +46,13 @@
   {
     "role": "assistant",
     "content": "Ben, Telegram üzerinden kısa ve net yanıtlar vermek için tasarlanmış bir yapay zeka asistanıyım. Sorularınızı, isteklerinizi ve merak ettiklerinizi hızlıca yanıtlarım. Başka bir şey öğrenmek ister misiniz?"
+  },
+  {
+    "role": "user",
+    "content": "153516712663×1738362617÷6262428493625= sonucu kactir"
+  },
+  {
+    "role": "assistant",
+    "content": "(Model boş yanıt döndürdü.)"
   }
 ]
