@@ -1,0 +1,19 @@
+# Render Blueprint: bu dosya repoda olduğunda Render servisi otomatik oluşturur.
+# Yeni servis açarken "New > Blueprint" ile seçebilirsiniz ya da repo'yu bağlayıp
+# Render'ın dosyayı otomatik algılamasını bekleyebilirsiniz.
+services:
+  - type: web
+    name: ai-bot
+    runtime: python
+    plan: free
+    region: frankfurt
+    autoDeploy: true
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
+    healthCheckPath: "/health"
+    env:
+      - key: RUN_MODE
+        value: webhook
+      # Not: TELEGRAM_TOKEN, ALLOWED_USER_ID, GROQ_API_KEY, GITHUB_REPOSITORY ve
+      # GH_PAT_TOKEN "Environment Variables" alanından gizli (secret) olarak ekleyin;
+      # bu dosyaya yazmayın.
