@@ -1,2 +1,7 @@
-python-telegram-bot
-groq
+python-telegram-bot>=21.6,<23
+groq>=0.11,<2
+ddgs>=9.0,<10
+apscheduler>=3.10,<4
+pypdf>=4
+aiohttp>=3.9
+python-dotenv>=1.0
